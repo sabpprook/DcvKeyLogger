@@ -1,10 +1,13 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Configuration;
 using System.Data;
+using System.Diagnostics;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Media;
 using System.Net;
 using System.Text;
 using System.Threading.Tasks;
@@ -18,6 +21,7 @@ namespace DcvKeyLogger
         static string LicenseUrl = "https://mlic.dmm.com/drm/widevine/license";
         static string GetWVKeyAPI = "http://getwvkeys.herokuapp.com/api";
         static string UserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) DMMPlayerv2/2.1.9 Chrome/94.0.4606.81 Electron/15.3.0 Safari/537.36";
+        static string DmmUID;
         static byte[] PSSH_UUID = {
             0xED, 0xEF, 0x8B, 0xA9, 0x79, 0xD6, 0x4A, 0xCE,
             0xA3, 0xC8, 0x27, 0xDC, 0xD5, 0x1D, 0x21, 0xED
@@ -28,7 +32,20 @@ namespace DcvKeyLogger
             InitializeComponent();
         }
 
-        private void Form1_Load(object sender, EventArgs e) { }
+        private void Form1_Load(object sender, EventArgs e)
+        {
+            textBox_UID.Text = DmmUID = ConfigurationManager.AppSettings["DmmUID"];
+            string[] args = Environment.GetCommandLineArgs();
+            if (args.Length > 1)
+            {
+                foreach (var arg in args)
+                {
+                    if (arg.EndsWith(".dcv"))
+                        DCVKey(arg);
+                }
+                Environment.Exit(0);
+            }
+        }
 
         private void label_DCV_DragEnter(object sender, DragEventArgs e)
         {
@@ -62,9 +79,15 @@ namespace DcvKeyLogger
         private string DCVKey(string dcvFile)
         {
             string pssh_b64 = GetPSSH(dcvFile);
-            string dmmUid = textBox_UID.Text;
-            string keys = GetDcvKeys(pssh_b64, dmmUid);
-            File.WriteAllText(Path.ChangeExtension(dcvFile, ".key"), keys);
+            DmmUID = textBox_UID.Text;
+            string keys = GetDcvKeys(pssh_b64, DmmUID);
+            string baseDir = Path.GetDirectoryName(Process.GetCurrentProcess().MainModule.FileName);
+            string keyDir = Path.Combine(baseDir, "key");
+            Directory.CreateDirectory(keyDir);
+            string keyFile = Path.Combine(keyDir, Path.ChangeExtension(Path.GetFileName(dcvFile), ".key"));
+            File.WriteAllText(keyFile, keys);
+            ConfigurationManager.AppSettings["DmmUID"] = DmmUID;
+            SystemSounds.Asterisk.Play();
             return keys;
         }
 
